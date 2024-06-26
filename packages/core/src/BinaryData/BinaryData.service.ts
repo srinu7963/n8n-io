@@ -84,7 +84,7 @@ export class BinaryDataService {
 		const manager = this.managers[this.mode];
 
 		if (!manager) {
-			const buffer = await this.toBuffer(bufferOrStream);
+			const buffer = await toBuffer(bufferOrStream);
 			binaryData.data = buffer.toString(BINARY_ENCODING);
 			binaryData.fileSize = prettyBytes(buffer.length);
 
@@ -108,10 +108,6 @@ export class BinaryDataService {
 		binaryData.data = this.mode; // clear binary data from memory
 
 		return binaryData;
-	}
-
-	async toBuffer(bufferOrStream: Buffer | Readable) {
-		return await toBuffer(bufferOrStream);
 	}
 
 	async getAsStream(binaryDataId: string, chunkSize?: number) {

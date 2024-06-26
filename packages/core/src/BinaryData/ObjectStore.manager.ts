@@ -22,7 +22,7 @@ export class ObjectStoreManager implements BinaryData.Manager {
 		metadata: BinaryData.PreWriteMetadata,
 	) {
 		const fileId = this.toFileId(workflowId, executionId);
-		const buffer = await this.toBuffer(bufferOrStream);
+		const buffer = await toBuffer(bufferOrStream);
 
 		await this.objectStoreService.put(fileId, buffer, metadata);
 
@@ -99,9 +99,5 @@ export class ObjectStoreManager implements BinaryData.Manager {
 		if (!executionId) executionId = 'temp'; // missing only in edge case, see PR #7244
 
 		return `workflows/${workflowId}/executions/${executionId}/binary_data/${uuid()}`;
-	}
-
-	private async toBuffer(bufferOrStream: Buffer | Readable) {
-		return await toBuffer(bufferOrStream);
 	}
 }
