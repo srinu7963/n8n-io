@@ -1,5 +1,5 @@
 import type { Readable } from 'stream';
-
+import type { IncomingMessage } from 'node:http';
 import type {
 	IBinaryKeyData,
 	IDataObject,
@@ -38,6 +38,7 @@ import {
 } from '../GenericFunctions';
 import type { HttpSslAuthCredentials } from '../interfaces';
 import { keysToLowercase } from '@utils/utilities';
+import { parseIncomingMessage } from 'n8n-core';
 
 function toText<T>(data: T) {
 	if (typeof data === 'object' && data !== null) {
@@ -1922,9 +1923,11 @@ export class HttpRequestV3 implements INodeType {
 					}
 				}
 
-				const responseContentType = response.headers['content-type'] ?? '';
+				const responseBody = response.body as IncomingMessage;
+				parseIncomingMessage(responseBody);
+				const responseContentType = responseBody.contentType;
 				if (autoDetectResponseFormat) {
-					if (responseContentType.includes('application/json')) {
+					if (responseContentType === 'application/json') {
 						responseFormat = 'json';
 						if (!response.__bodyResolved) {
 							const neverError = this.getNodeParameter(
@@ -1933,23 +1936,24 @@ export class HttpRequestV3 implements INodeType {
 								false,
 							) as boolean;
 
-							const data = await this.helpers
-								.binaryToBuffer(response.body as Buffer | Readable)
-								.then((body) => body.toString());
+							const buffer = await this.helpers.responseToBuffer(response.body);
+							const data = buffer.toString(responseBody.encoding);
 							response.body = jsonParse(data, {
 								...(neverError
 									? { fallbackValue: {} }
 									: { errorMessage: 'Invalid JSON in response body' }),
 							});
 						}
-					} else if (binaryContentTypes.some((e) => responseContentType.includes(e))) {
+					} else if (
+						!responseContentType ||
+						binaryContentTypes.some((e) => responseContentType.includes(e))
+					) {
 						responseFormat = 'file';
 					} else {
 						responseFormat = 'text';
 						if (!response.__bodyResolved) {
-							const data = await this.helpers
-								.binaryToBuffer(response.body as Buffer | Readable)
-								.then((body) => body.toString());
+							const buffer = await this.helpers.responseToBuffer(response.body);
+							const data = buffer.toString(responseBody.encoding);
 							response.body = !data ? undefined : data;
 						}
 					}
