@@ -45,5 +45,5 @@ export const streamToBuffer = async (stream: Readable) =>
 	});
 
 /** Converts a buffer or a readable stream to a buffer */
-export const toBuffer = async (body: Buffer | Readable) =>
+export const binaryToBuffer = async (body: Buffer | Readable) =>
 	Buffer.isBuffer(body) ? body : await streamToBuffer(body);
