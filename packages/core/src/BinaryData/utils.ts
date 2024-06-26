@@ -32,10 +32,10 @@ export async function doesNotExist(dir: string) {
 	}
 }
 
-export async function toBuffer(body: Buffer | Readable) {
-	if (Buffer.isBuffer(body)) return body;
-	return await new Promise<Buffer>((resolve, reject) => {
-		body
+/** Converts a readable stream to a buffer */
+export const streamToBuffer = async (stream: Readable) =>
+	await new Promise<Buffer>((resolve, reject) => {
+		stream
 			.once('error', (cause) => {
 				if ('code' in cause && cause.code === 'Z_DATA_ERROR')
 					reject(new Error('Failed to decompress response', { cause }));
@@ -43,4 +43,7 @@ export async function toBuffer(body: Buffer | Readable) {
 			})
 			.pipe(concatStream(resolve));
 	});
-}
+
+/** Converts a buffer or a readable stream to a buffer */
+export const toBuffer = async (body: Buffer | Readable) =>
+	Buffer.isBuffer(body) ? body : await streamToBuffer(body);
