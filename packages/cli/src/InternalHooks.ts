@@ -15,7 +15,7 @@ import { InstanceSettings } from 'n8n-core';
 import config from '@/config';
 import { N8N_VERSION } from '@/constants';
 import type { AuthProviderType } from '@db/entities/AuthIdentity';
-import type { GlobalRole, User } from '@db/entities/User';
+import type { User } from '@db/entities/User';
 import { SharedWorkflowRepository } from '@db/repositories/sharedWorkflow.repository';
 import { WorkflowRepository } from '@db/repositories/workflow.repository';
 import { determineFinalExecutionStatus } from '@/executionLifecycleHooks/shared/sharedHookFunctions';
@@ -29,7 +29,6 @@ import { EventsService } from '@/services/events.service';
 import { NodeTypes } from '@/NodeTypes';
 import { Telemetry } from '@/telemetry';
 import type { Project } from '@db/entities/Project';
-import type { ProjectRole } from '@db/entities/ProjectRelation';
 import { ProjectRelationRepository } from './databases/repositories/projectRelation.repository';
 import { SharedCredentialsRepository } from './databases/repositories/sharedCredentials.repository';
 import { MessageEventBus } from './eventbus/MessageEventBus/MessageEventBus';
@@ -374,28 +373,6 @@ export class InternalHooks {
 		return await this.telemetry.track('User updated workflow sharing', properties);
 	}
 
-	async onN8nStop(): Promise<void> {
-		const timeoutPromise = new Promise<void>((resolve) => {
-			setTimeout(() => {
-				resolve();
-			}, 3000);
-		});
-
-		return await Promise.race([timeoutPromise, this.telemetry.trackN8nStop()]);
-	}
-
-	async onUserDeletion(userDeletionData: {
-		user: User;
-		telemetryData: ITelemetryUserDeletionData;
-		publicApi: boolean;
-	}): Promise<void> {
-		void this.telemetry.track('User deleted user', {
-			...userDeletionData.telemetryData,
-			user_id: userDeletionData.user.id,
-			public_api: userDeletionData.publicApi,
-		});
-	}
-
 	async onUserInvite(userInviteData: {
 		user: User;
 		target_user_id: string[];
@@ -423,48 +400,6 @@ export class InternalHooks {
 		void this.telemetry.track('User changed role', { user_id: user.id, ...rest });
 	}
 
-	async onUserRetrievedUser(userRetrievedData: {
-		user_id: string;
-		public_api: boolean;
-	}): Promise<void> {
-		return await this.telemetry.track('User retrieved user', userRetrievedData);
-	}
-
-	async onUserRetrievedAllUsers(userRetrievedData: {
-		user_id: string;
-		public_api: boolean;
-	}): Promise<void> {
-		return await this.telemetry.track('User retrieved all users', userRetrievedData);
-	}
-
-	async onUserRetrievedExecution(userRetrievedData: {
-		user_id: string;
-		public_api: boolean;
-	}): Promise<void> {
-		return await this.telemetry.track('User retrieved execution', userRetrievedData);
-	}
-
-	async onUserRetrievedAllExecutions(userRetrievedData: {
-		user_id: string;
-		public_api: boolean;
-	}): Promise<void> {
-		return await this.telemetry.track('User retrieved all executions', userRetrievedData);
-	}
-
-	async onUserRetrievedWorkflow(userRetrievedData: {
-		user_id: string;
-		public_api: boolean;
-	}): Promise<void> {
-		return await this.telemetry.track('User retrieved workflow', userRetrievedData);
-	}
-
-	async onUserRetrievedAllWorkflows(userRetrievedData: {
-		user_id: string;
-		public_api: boolean;
-	}): Promise<void> {
-		return await this.telemetry.track('User retrieved all workflows', userRetrievedData);
-	}
-
 	async onUserUpdate(userUpdateData: { user: User; fields_changed: string[] }): Promise<void> {
 		void this.telemetry.track('User changed personal settings', {
 			user_id: userUpdateData.user.id,
@@ -478,12 +413,6 @@ export class InternalHooks {
 	}): Promise<void> {
 		void this.telemetry.track('User clicked invite link from email', {
 			user_id: userInviteClickData.invitee.id,
-		});
-	}
-
-	async onUserPasswordResetEmailClick(userPasswordResetData: { user: User }): Promise<void> {
-		void this.telemetry.track('User clicked password reset link from email', {
-			user_id: userPasswordResetData.user.id,
 		});
 	}
 
@@ -503,49 +432,9 @@ export class InternalHooks {
 		);
 	}
 
-	async onUserInvokedApi(userInvokedApiData: {
-		user_id: string;
-		path: string;
-		method: string;
-		api_version: string;
-	}): Promise<void> {
-		return await this.telemetry.track('User invoked API', userInvokedApiData);
-	}
-
-	async onApiKeyDeleted(apiKeyDeletedData: { user: User; public_api: boolean }): Promise<void> {
-		void this.telemetry.track('API key deleted', {
-			user_id: apiKeyDeletedData.user.id,
-			public_api: apiKeyDeletedData.public_api,
-		});
-	}
-
-	async onApiKeyCreated(apiKeyCreatedData: { user: User; public_api: boolean }): Promise<void> {
-		void this.telemetry.track('API key created', {
-			user_id: apiKeyCreatedData.user.id,
-			public_api: apiKeyCreatedData.public_api,
-		});
-	}
-
 	async onUserPasswordResetRequestClick(userPasswordResetData: { user: User }): Promise<void> {
 		void this.telemetry.track('User requested password reset while logged out', {
 			user_id: userPasswordResetData.user.id,
-		});
-	}
-
-	async onInstanceOwnerSetup(instanceOwnerSetupData: { user_id: string }): Promise<void> {
-		return await this.telemetry.track('Owner finished instance setup', instanceOwnerSetupData);
-	}
-
-	async onUserSignup(
-		user: User,
-		userSignupData: {
-			user_type: AuthProviderType;
-			was_disabled_ldap_user: boolean;
-		},
-	): Promise<void> {
-		void this.telemetry.track('User signed up', {
-			user_id: user.id,
-			...userSignupData,
 		});
 	}
 
@@ -757,13 +646,6 @@ export class InternalHooks {
 	}
 
 	/**
-	 * License
-	 */
-	async onLicenseRenewAttempt(data: { success: boolean }): Promise<void> {
-		await this.telemetry.track('Instance attempted to refresh license', data);
-	}
-
-	/**
 	 * Audit
 	 */
 	async onAuditGeneratedViaCli() {
@@ -831,32 +713,5 @@ export class InternalHooks {
 		error_message?: string | undefined;
 	}): Promise<void> {
 		return await this.telemetry.track('User updated external secrets settings', saveData);
-	}
-
-	async onTeamProjectCreated(data: { user_id: string; role: GlobalRole }) {
-		return await this.telemetry.track('User created project', data);
-	}
-
-	async onTeamProjectDeleted(data: {
-		user_id: string;
-		role: GlobalRole;
-		project_id: string;
-		removal_type: 'delete' | 'transfer';
-		target_project_id?: string;
-	}) {
-		return await this.telemetry.track('User deleted project', data);
-	}
-
-	async onTeamProjectUpdated(data: {
-		user_id: string;
-		role: GlobalRole;
-		project_id: string;
-		members: Array<{ user_id: string; role: ProjectRole }>;
-	}) {
-		return await this.telemetry.track('Project settings updated', data);
-	}
-
-	async onConcurrencyLimitHit({ threshold }: { threshold: number }) {
-		await this.telemetry.track('User hit concurrency limit', { threshold });
 	}
 }

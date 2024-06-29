@@ -1,5 +1,7 @@
 import type { AuthenticationMethod, IWorkflowBase } from 'n8n-workflow';
 import type { IWorkflowExecutionDataProcess } from '@/Interfaces';
+import type { ProjectRole } from '@/databases/entities/ProjectRelation';
+import type { GlobalRole } from '@/databases/entities/User';
 
 export type UserLike = {
 	id: string;
@@ -10,7 +12,7 @@ export type UserLike = {
 };
 
 /**
- * Events sent by services and consumed by relays, e.g. `AuditEventRelay`.
+ * Events sent by services and consumed by relays, e.g. `AuditEventRelay` and `TelemetryEventRelay`.
  */
 export type Event = {
 	'workflow-created': {
@@ -58,6 +60,11 @@ export type Event = {
 
 	'user-deleted': {
 		user: UserLike;
+		target_user_old_status: string;
+		target_user_id?: string;
+		migration_strategy?: string;
+		migration_user_id?: string;
+		public_api: boolean;
 	};
 
 	'user-invited': {
@@ -75,7 +82,46 @@ export type Event = {
 		fieldsChanged: string[];
 	};
 
+	'user-invoked-api': {
+		user: UserLike;
+		path: string;
+		method: string;
+		api_version: string;
+	};
+
 	'user-signed-up': {
+		user: UserLike;
+		signUpMetadata?: {
+			user_type: string;
+			was_disabled_ldap_user: boolean;
+		};
+	};
+
+	'user-retrieved-user': {
+		user: UserLike;
+	};
+
+	'user-retrieved-all-users': {
+		user: UserLike;
+	};
+
+	'user-retrieved-execution': {
+		user: UserLike;
+	};
+
+	'user-retrieved-all-executions': {
+		user: UserLike;
+	};
+
+	'user-retrieved-all-workflows': {
+		user: UserLike;
+	};
+
+	'user-retrieved-workflow': {
+		user: UserLike;
+	};
+
+	'user-owner-setup': {
 		user: UserLike;
 	};
 
@@ -95,20 +141,20 @@ export type Event = {
 		invitee: UserLike;
 	};
 
-	'user-password-reset-email-click': {
+	'user-clicked-password-reset-email': {
 		user: UserLike;
 	};
 
-	'user-password-reset-request-click': {
-		user: UserLike;
-	};
+	'n8n-stopped': {};
 
 	'api-key-created': {
 		user: UserLike;
+		public_api?: boolean;
 	};
 
 	'api-key-deleted': {
 		user: UserLike;
+		public_api?: boolean;
 	};
 
 	'email-failed': {
@@ -181,5 +227,32 @@ export type Event = {
 		packageNodeNames: string[];
 		packageAuthor?: string;
 		packageAuthorEmail?: string;
+	};
+
+	'team-project-updated': {
+		userId: string;
+		role: GlobalRole;
+		members: Array<{
+			userId: string;
+			role: ProjectRole;
+		}>;
+		projectId: string;
+	};
+
+	'team-project-deleted': {
+		userId: string;
+		role: GlobalRole;
+		projectId: string;
+		removalType: 'transfer' | 'delete';
+		targetProjectId?: string;
+	};
+
+	'team-project-created': {
+		userId: string;
+		role: GlobalRole;
+	};
+
+	'license-renew-attempted': {
+		success: boolean;
 	};
 };
