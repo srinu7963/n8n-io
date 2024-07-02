@@ -127,7 +127,7 @@ import type { Token } from 'oauth-1.0a';
 import clientOAuth1 from 'oauth-1.0a';
 import path from 'path';
 import { stringify } from 'qs';
-import { Readable } from 'stream';
+import type { Readable } from 'stream';
 import url, { URL, URLSearchParams } from 'url';
 
 import { BinaryDataService } from './BinaryData/BinaryData.service';
@@ -156,6 +156,7 @@ import Container from 'typedi';
 import type { BinaryData } from './BinaryData/types';
 import merge from 'lodash/merge';
 import { InstanceSettings } from './InstanceSettings';
+import { binaryToBuffer, streamToBuffer } from './BinaryData/utils';
 
 axios.defaults.timeout = 300000;
 // Prevent axios from adding x-form-www-urlencoded headers by default
@@ -834,10 +835,10 @@ export async function proxyRequestToAxios(
 				Logger.debug('Request proxied to Axios failed', { status: response.status });
 				let responseData = response.data;
 
-				if (Buffer.isBuffer(responseData) || responseData instanceof Readable) {
-					responseData = await Container.get(BinaryDataService)
-						.toBuffer(responseData)
-						.then((buffer) => buffer.toString('utf-8'));
+				if (responseData instanceof IncomingMessage) {
+					parseIncomingMessage(responseData);
+					const buffer = await streamToBuffer(responseData);
+					responseData = buffer.toString(responseData.encoding);
 				}
 
 				if (configObject.simple === false) {
@@ -3088,19 +3089,18 @@ const getRequestHelperFunctions = (
 
 				let contentBody: Exclude<IN8nHttpResponse, Buffer>;
 
-				if (newResponse.body instanceof Readable && paginationOptions.binaryResult !== true) {
-					const data = await this.helpers
-						.binaryToBuffer(newResponse.body as Buffer | Readable)
-						.then((body) => body.toString());
+				if (
+					newResponse.body instanceof IncomingMessage &&
+					paginationOptions.binaryResult !== true
+				) {
+					const response = newResponse.body;
+					parseIncomingMessage(response);
+					const buffer = await streamToBuffer(response);
+					const data = buffer.toString(response.encoding);
 					// Keep the original string version that we can use it to hash if needed
 					contentBody = data;
 
-					const responseContentType = newResponse.headers['content-type']?.toString() ?? '';
-					if (responseContentType.includes('application/json')) {
-						newResponse.body = jsonParse(data, { fallbackValue: {} });
-					} else {
-						newResponse.body = data;
-					}
+					newResponse.body = response.contentType === 'application/json' ? jsonParse(data) : data;
 					tempResponseData.__bodyResolved = true;
 					tempResponseData.body = newResponse.body;
 				} else {
@@ -3184,10 +3184,11 @@ const getRequestHelperFunctions = (
 						// configured to stop on 404 response codes. For that reason we have to throw here
 						// now an error manually if the response code is not a success one.
 						let data = tempResponseData.body;
-						if (data instanceof Readable && paginationOptions.binaryResult !== true) {
-							data = await this.helpers
-								.binaryToBuffer(tempResponseData.body as Buffer | Readable)
-								.then((body) => body.toString());
+						if (data instanceof IncomingMessage && paginationOptions.binaryResult !== true) {
+							const response = data;
+							parseIncomingMessage(response);
+							const buffer = await streamToBuffer(response);
+							data = buffer.toString(response.encoding);
 						} else if (typeof data === 'object') {
 							data = JSON.stringify(data);
 						}
@@ -3393,8 +3394,8 @@ const getBinaryHelperFunctions = (
 	getBinaryPath,
 	getBinaryStream,
 	getBinaryMetadata,
-	binaryToBuffer: async (body: Buffer | Readable) =>
-		await Container.get(BinaryDataService).toBuffer(body),
+	binaryToBuffer,
+	responseToBuffer: streamToBuffer,
 	prepareBinaryData: async (binaryData, filePath, mimeType) =>
 		await prepareBinaryData(binaryData, executionId!, workflowId, filePath, mimeType),
 	setBinaryDataBuffer: async (data, binaryData) =>
@@ -3735,8 +3736,6 @@ export function getExecuteFunctions(
 				);
 				return dataProxy.getDataProxy();
 			},
-			binaryToBuffer: async (body: Buffer | Readable) =>
-				await Container.get(BinaryDataService).toBuffer(body),
 			async putExecutionToWait(waitTill: Date): Promise<void> {
 				runExecutionData.waitTill = waitTill;
 				if (additionalData.setExecutionStatus) {
