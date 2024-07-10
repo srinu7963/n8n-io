@@ -375,6 +375,9 @@ function copySuccess() {
 				class="node-error-view__header-description"
 				v-html="getErrorDescription()"
 			></div>
+			<div class="node-error-view__assistant-button">
+				<n8n-ask-assistant-button />
+			</div>
 		</div>
 
 		<div class="node-error-view__info">
@@ -629,6 +632,11 @@ function copySuccess() {
 			padding: var(--spacing-5xs);
 			border-radius: var(--border-radius-base);
 		}
+	}
+
+	&__assistant-button {
+		margin-left: var(--spacing-s);
+		margin-bottom: var(--spacing-xs);
 	}
 
 	&__debugging {
