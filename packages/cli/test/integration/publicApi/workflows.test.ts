@@ -704,6 +704,7 @@ describe('POST /workflows', () => {
 				saveManualExecutions: true,
 				saveDataErrorExecution: 'all',
 				saveDataSuccessExecution: 'all',
+				executionOrder: 'v1',
 				executionTimeout: 3600,
 				timezone: 'America/New_York',
 				executionOrder: 'v1',
@@ -741,6 +742,72 @@ describe('POST /workflows', () => {
 		expect(sharedWorkflow?.role).toEqual('workflow:owner');
 	});
 
+	test('should create workflow with default execution order (v1)', async () => {
+		const payload = {
+			name: 'testing',
+			nodes: [
+				{
+					id: 'uuid-1234',
+					parameters: {},
+					name: 'Start',
+					type: 'n8n-nodes-base.start',
+					typeVersion: 1,
+					position: [240, 300],
+				},
+			],
+			connections: {},
+			staticData: null,
+			settings: {
+				saveExecutionProgress: true,
+				saveManualExecutions: true,
+				saveDataErrorExecution: 'all',
+				saveDataSuccessExecution: 'all',
+				executionTimeout: 3600,
+				timezone: 'America/New_York',
+			},
+		};
+
+		const response = await authMemberAgent.post('/workflows').send(payload);
+
+		expect(response.statusCode).toBe(200);
+
+		const { id, name, nodes, connections, staticData, active, settings, createdAt, updatedAt } =
+			response.body;
+
+		const expectedSettings = {
+			saveExecutionProgress: true,
+			saveManualExecutions: true,
+			saveDataErrorExecution: 'all',
+			saveDataSuccessExecution: 'all',
+			executionOrder: 'v1',
+			executionTimeout: 3600,
+			timezone: 'America/New_York',
+		};
+
+		expect(id).toBeDefined();
+		expect(name).toBe(payload.name);
+		expect(connections).toEqual(payload.connections);
+		expect(settings).toEqual(expectedSettings);
+		expect(staticData).toEqual(payload.staticData);
+		expect(nodes).toEqual(payload.nodes);
+		expect(active).toBe(false);
+		expect(createdAt).toBeDefined();
+		expect(updatedAt).toEqual(createdAt);
+
+		// check if created workflow in DB
+		const sharedWorkflow = await Container.get(SharedWorkflowRepository).findOne({
+			where: {
+				userId: member.id,
+				workflowId: response.body.id,
+			},
+			relations: ['workflow'],
+		});
+
+		expect(sharedWorkflow?.workflow.name).toBe(name);
+		expect(sharedWorkflow?.workflow.createdAt.toISOString()).toBe(createdAt);
+		expect(sharedWorkflow?.role).toEqual('workflow:owner');
+	});
+
 	test('should create workflow history version when licensed', async () => {
 		license.enable('feat:workflowHistory');
 		const payload = {
@@ -762,6 +829,7 @@ describe('POST /workflows', () => {
 				saveManualExecutions: true,
 				saveDataErrorExecution: 'all',
 				saveDataSuccessExecution: 'all',
+				executionOrder: 'v1',
 				executionTimeout: 3600,
 				timezone: 'America/New_York',
 			},
@@ -808,6 +876,7 @@ describe('POST /workflows', () => {
 				saveManualExecutions: true,
 				saveDataErrorExecution: 'all',
 				saveDataSuccessExecution: 'all',
+				executionOrder: 'v1',
 				executionTimeout: 3600,
 				timezone: 'America/New_York',
 			},
@@ -844,6 +913,7 @@ describe('POST /workflows', () => {
 				saveManualExecutions: true,
 				saveDataErrorExecution: 'all',
 				saveDataSuccessExecution: 'all',
+				executionOrder: 'v1',
 				executionTimeout: 3600,
 				timezone: 'America/New_York',
 			},
@@ -880,6 +950,7 @@ describe('PUT /workflows/:id', () => {
 				saveManualExecutions: true,
 				saveDataErrorExecution: 'all',
 				saveDataSuccessExecution: 'all',
+				executionOrder: 'v1',
 				executionTimeout: 3600,
 				timezone: 'America/New_York',
 			},
@@ -907,6 +978,7 @@ describe('PUT /workflows/:id', () => {
 				saveManualExecutions: true,
 				saveDataErrorExecution: 'all',
 				saveDataSuccessExecution: 'all',
+				executionOrder: 'v1',
 				executionTimeout: 3600,
 				timezone: 'America/New_York',
 			},
@@ -916,6 +988,73 @@ describe('PUT /workflows/:id', () => {
 	});
 
 	test('should update workflow', async () => {
+		const workflow = await createWorkflow({}, member);
+		const payload = {
+			name: 'name updated',
+			nodes: [
+				{
+					id: 'uuid-1234',
+					parameters: {},
+					name: 'Start',
+					type: 'n8n-nodes-base.start',
+					typeVersion: 1,
+					position: [240, 300],
+				},
+				{
+					id: 'uuid-1234',
+					parameters: {},
+					name: 'Cron',
+					type: 'n8n-nodes-base.cron',
+					typeVersion: 1,
+					position: [400, 300],
+				},
+			],
+			connections: {},
+			staticData: '{"id":1}',
+			settings: {
+				saveExecutionProgress: false,
+				saveManualExecutions: false,
+				saveDataErrorExecution: 'all',
+				saveDataSuccessExecution: 'all',
+				executionOrder: 'v0',
+				executionTimeout: 3600,
+				timezone: 'America/New_York',
+			},
+		};
+
+		const response = await authMemberAgent.put(`/workflows/${workflow.id}`).send(payload);
+
+		const { id, name, nodes, connections, staticData, active, settings, createdAt, updatedAt } =
+			response.body;
+
+		expect(response.statusCode).toBe(200);
+
+		expect(id).toBe(workflow.id);
+		expect(name).toBe(payload.name);
+		expect(connections).toEqual(payload.connections);
+		expect(settings).toEqual(payload.settings);
+		expect(staticData).toMatchObject(JSON.parse(payload.staticData));
+		expect(nodes).toEqual(payload.nodes);
+		expect(active).toBe(false);
+		expect(createdAt).toBe(workflow.createdAt.toISOString());
+		expect(updatedAt).not.toBe(workflow.updatedAt.toISOString());
+
+		// check updated workflow in DB
+		const sharedWorkflow = await Container.get(SharedWorkflowRepository).findOne({
+			where: {
+				userId: member.id,
+				workflowId: response.body.id,
+			},
+			relations: ['workflow'],
+		});
+
+		expect(sharedWorkflow?.workflow.name).toBe(payload.name);
+		expect(sharedWorkflow?.workflow.updatedAt.getTime()).toBeGreaterThan(
+			workflow.updatedAt.getTime(),
+		);
+	});
+
+	test('should update workflow with default execution order (v1)', async () => {
 		const workflow = await createWorkflow({}, member);
 		const payload = {
 			name: 'name updated',
@@ -954,12 +1093,22 @@ describe('PUT /workflows/:id', () => {
 		const { id, name, nodes, connections, staticData, active, settings, createdAt, updatedAt } =
 			response.body;
 
+		const expectedSettings = {
+			saveExecutionProgress: false,
+			saveManualExecutions: false,
+			saveDataErrorExecution: 'all',
+			saveDataSuccessExecution: 'all',
+			executionOrder: 'v1',
+			executionTimeout: 3600,
+			timezone: 'America/New_York',
+		};
+
 		expect(response.statusCode).toBe(200);
 
 		expect(id).toBe(workflow.id);
 		expect(name).toBe(payload.name);
 		expect(connections).toEqual(payload.connections);
-		expect(settings).toEqual(payload.settings);
+		expect(settings).toEqual(expectedSettings);
 		expect(staticData).toMatchObject(JSON.parse(payload.staticData));
 		expect(nodes).toEqual(payload.nodes);
 		expect(active).toBe(false);
@@ -1011,6 +1160,7 @@ describe('PUT /workflows/:id', () => {
 				saveManualExecutions: false,
 				saveDataErrorExecution: 'all',
 				saveDataSuccessExecution: 'all',
+				executionOrder: 'v1',
 				executionTimeout: 3600,
 				timezone: 'America/New_York',
 			},
@@ -1066,6 +1216,7 @@ describe('PUT /workflows/:id', () => {
 				saveManualExecutions: false,
 				saveDataErrorExecution: 'all',
 				saveDataSuccessExecution: 'all',
+				executionOrder: 'v1',
 				executionTimeout: 3600,
 				timezone: 'America/New_York',
 			},
@@ -1113,6 +1264,7 @@ describe('PUT /workflows/:id', () => {
 				saveManualExecutions: false,
 				saveDataErrorExecution: 'all',
 				saveDataSuccessExecution: 'all',
+				executionOrder: 'v1',
 				executionTimeout: 3600,
 				timezone: 'America/New_York',
 			},
