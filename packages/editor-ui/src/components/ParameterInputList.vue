@@ -167,6 +167,7 @@ import type {
 	INodeProperties,
 	NodeParameterValue,
 	NodeParameterValueType,
+	NodePropertyAction,
 } from 'n8n-workflow';
 import { deepCopy } from 'n8n-workflow';
 import { computed, defineAsyncComponent, onErrorCaptured, ref, watch } from 'vue';
@@ -483,10 +484,44 @@ function onNoticeAction(action: string) {
  * Handles default node button parameter type actions
  * @param parameter
  */
-function onButtonAction(parameter: INodeProperties) {
-	const action: string | undefined = parameter.typeOptions?.action;
+async function onButtonAction(parameter: INodeProperties) {
+	const action: string | NodePropertyAction | undefined = parameter.typeOptions?.action;
 
-	switch (action) {
+	if (!action || !ndvStore.activeNode) return;
+
+	if (typeof action === 'string') {
+		switch (action) {
+			default:
+				return;
+		}
+	}
+
+	const { type, handler, target } = action;
+
+	const currentNodeParameters = ndvStore.activeNode.parameters;
+	const actionResult = await nodeTypesStore.getNodeParameterActionResult({
+		nodeTypeAndVersion: {
+			name: ndvStore.activeNode.type,
+			version: ndvStore.activeNode.typeVersion,
+		},
+		path: props.path,
+		currentNodeParameters,
+		credentials: ndvStore.activeNode.credentials,
+		handler,
+		target,
+	});
+
+	if (actionResult === undefined) return;
+
+	switch (type) {
+		case 'updateProperty':
+			const parameterData: IUpdateInformation = {
+				name: getPath(target as string),
+				value: actionResult,
+			};
+
+			//TODO: code editor does not displays updated value, needs to be closed and reopened
+			emit('valueChanged', parameterData);
 		default:
 			return;
 	}
