@@ -10,7 +10,7 @@ import {
 } from '@/constants';
 import { useMessage } from '@/composables/useMessage';
 import { useToast } from '@/composables/useToast';
-import { getWorkflowPermissions } from '@/permissions';
+import { getResourcePermissions } from '@/permissions';
 import dateformat from 'dateformat';
 import WorkflowActivator from '@/components/WorkflowActivator.vue';
 import { useUIStore } from '@/stores/ui.store';
@@ -73,7 +73,7 @@ const workflowsStore = useWorkflowsStore();
 const projectsStore = useProjectsStore();
 
 const currentUser = computed(() => usersStore.currentUser ?? ({} as IUser));
-const workflowPermissions = computed(() => getWorkflowPermissions(props.data));
+const workflowPermissions = computed(() => getResourcePermissions(props.data.scopes).workflow);
 const actions = computed(() => {
 	const items = [
 		{

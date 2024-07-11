@@ -12,9 +12,6 @@ import {
 	WORKFLOW_SETTINGS_MODAL_KEY,
 	WORKFLOW_SHARE_MODAL_KEY,
 } from '@/constants';
-import type { PermissionsMap } from '@/permissions';
-import type { WorkflowScope } from '@n8n/permissions';
-
 import ShortenName from '@/components/ShortenName.vue';
 import TagsContainer from '@/components/TagsContainer.vue';
 import PushConnectionTracker from '@/components/PushConnectionTracker.vue';
@@ -37,8 +34,7 @@ import { saveAs } from 'file-saver';
 import { useTitleChange } from '@/composables/useTitleChange';
 import { useMessage } from '@/composables/useMessage';
 import { useToast } from '@/composables/useToast';
-
-import { getWorkflowPermissions } from '@/permissions';
+import { getResourcePermissions } from '@/permissions';
 import { createEventBus } from 'n8n-design-system/utils';
 import { nodeViewEventBus } from '@/event-bus';
 import { hasPermission } from '@/utils/rbac/permissions';
@@ -54,7 +50,7 @@ import type {
 } from '@/Interface';
 import { useI18n } from '@/composables/useI18n';
 import { useTelemetry } from '@/composables/useTelemetry';
-import type { BaseTextKey } from '../../plugins/i18n';
+import type { BaseTextKey } from '@/plugins/i18n';
 import { useNpsSurveyStore } from '@/stores/npsSurvey.store';
 import { useLocalStorage } from '@vueuse/core';
 
@@ -116,7 +112,7 @@ const isNewWorkflow = computed(() => {
 });
 
 const isWorkflowSaving = computed(() => {
-	return uiStore.isActionActive['workflowSaving'];
+	return uiStore.isActionActive.workflowSaving;
 });
 
 const onWorkflowPage = computed(() => {
@@ -131,9 +127,9 @@ const onExecutionsTab = computed(() => {
 	].includes((route.name as string) || '');
 });
 
-const workflowPermissions = computed<PermissionsMap<WorkflowScope>>(() => {
-	return getWorkflowPermissions(workflowsStore.getWorkflowById(props.workflow.id));
-});
+const workflowPermissions = computed(
+	() => getResourcePermissions(workflowsStore.getWorkflowById(props.workflow.id)?.scopes).workflow,
+);
 
 const workflowMenuItems = computed<ActionDropdownItem[]>(() => {
 	const actions: ActionDropdownItem[] = [
@@ -144,7 +140,7 @@ const workflowMenuItems = computed<ActionDropdownItem[]>(() => {
 		},
 	];
 
-	if (!props.readOnly) {
+	if (!props.readOnly && workflowPermissions.value.update) {
 		actions.unshift({
 			id: WORKFLOW_MENU_ACTIONS.DUPLICATE,
 			label: locale.baseText('menuActions.duplicate'),
@@ -622,7 +618,7 @@ function showCreateWorkflowSuccessToast(id?: string) {
 							:preview-value="shortenedName"
 							:is-edit-enabled="isNameEditEnabled"
 							:max-length="MAX_WORKFLOW_NAME_LENGTH"
-							:disabled="readOnly"
+							:disabled="readOnly || (!isNewWorkflow && !workflowPermissions.update)"
 							placeholder="Enter workflow name"
 							class="name"
 							@toggle="onNameToggle"
@@ -635,7 +631,7 @@ function showCreateWorkflowSuccessToast(id?: string) {
 
 		<span v-if="settingsStore.areTagsEnabled" class="tags" data-test-id="workflow-tags-container">
 			<TagsDropdown
-				v-if="isTagsEditEnabled && !readOnly"
+				v-if="isTagsEditEnabled && !readOnly && (isNewWorkflow || workflowPermissions.update)"
 				ref="dropdown"
 				v-model="appliedTagIds"
 				:create-enabled="true"
@@ -646,7 +642,13 @@ function showCreateWorkflowSuccessToast(id?: string) {
 				@blur="onTagsBlur"
 				@esc="onTagsEditEsc"
 			/>
-			<div v-else-if="(workflow.tags ?? []).length === 0 && !readOnly">
+			<div
+				v-else-if="
+					(workflow.tags ?? []).length === 0 &&
+					!readOnly &&
+					(isNewWorkflow || workflowPermissions.update)
+				"
+			>
 				<span class="add-tag clickable" data-test-id="new-tag-link" @click="onTagsEditEnable">
 					+ {{ $locale.baseText('workflowDetails.addTag') }}
 				</span>
@@ -709,8 +711,10 @@ function showCreateWorkflowSuccessToast(id?: string) {
 				<SaveButton
 					type="primary"
 					:saved="!uiStore.stateIsDirty && !isNewWorkflow"
-					:disabled="isWorkflowSaving || readOnly"
-					with-shortcut
+					:disabled="
+						isWorkflowSaving || readOnly || (!isNewWorkflow && !workflowPermissions.update)
+					"
+					:with-shortcut="!readOnly && workflowPermissions.update"
 					:shortcut-tooltip="$locale.baseText('saveWorkflowButton.hint')"
 					data-test-id="workflow-save-button"
 					@click="onSaveButtonClick"
