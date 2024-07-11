@@ -134,9 +134,11 @@ export class ExecutionRecoveryService {
 			return waitMs;
 		}
 
-		const { Queue } = await import('@/Queue');
+		const { ScalingMode } = await import('@/scaling-mode/scaling-mode');
 
-		const queuedIds = await Container.get(Queue).getInProgressExecutionIds();
+		const runningJobs = await Container.get(ScalingMode).findJobsByState(['active', 'waiting']);
+
+		const queuedIds = new Set(runningJobs.map((job) => job.data.executionId));
 
 		if (queuedIds.size === 0) {
 			this.logger.debug('[Recovery] Completed queue recovery check, no dangling executions');
